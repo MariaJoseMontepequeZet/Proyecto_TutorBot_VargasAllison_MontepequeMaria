@@ -1,0 +1,315 @@
+{
+  "name": "TutorBot - Resumen Tutorías por Materia (Coordinación)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "d99b3d45-c9dc-4b67-98da-d288f1370737",
+      "name": "Menú: Resumen Semanal",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -592,
+        432
+      ],
+      "notes": "Conectar aquí la salida del botón '📊 Resumen Semanal de Tutorías' dentro del Switch/menú de Coordinación."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-coordinador",
+              "leftValue": "={{ $json.telegram_user_id }}",
+              "rightValue": "={{ $('Config Coordinador').item.json.coordinador_telegram_id }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6776e413-6e8e-425e-9d3c-9f4fb803c5ff",
+      "name": "IF - Validar Coordinador",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -368,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "coord-id",
+              "name": "coordinador_telegram_id",
+              "type": "string",
+              "value": "PLACEHOLDER_COORDINADOR_TELEGRAM_ID"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a2bcfdc8-2e8e-4d52-b737-f5c26eb95480",
+      "name": "Config Coordinador",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -592,
+        240
+      ],
+      "notes": "Reemplazar el placeholder con el telegram_user_id real del coordinador, o apuntar este valor a una celda de configuración en Sheets."
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "100VQ1T140fHFdwB8cDbGJGAWOZGYcIAy0KJz0tcH7E8"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "id",
+          "value": "gid=0"
+        },
+        "options": {}
+      },
+      "id": "fc36eaa1-5a39-4722-862b-be4bd9f92961",
+      "name": "Google Sheets - Leer TUTORIAS",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -144,
+        240
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "N7EsaChMRLBNpjsZ",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Node: Code - Resumen Tutorías por Materia (Semana Actual)\nconst items = $input.all();\n\nfunction obtenerRangoSemanaActual() {\n  const hoy = new Date();\n  const dia = hoy.getDay(); // 0 = domingo\n  const diff = dia === 0 ? -6 : 1 - dia;\n  const lunes = new Date(hoy);\n  lunes.setDate(hoy.getDate() + diff);\n  lunes.setHours(0, 0, 0, 0);\n  const domingo = new Date(lunes);\n  domingo.setDate(lunes.getDate() + 6);\n  domingo.setHours(23, 59, 59, 999);\n  return { lunes, domingo };\n}\n\nconst { lunes, domingo } = obtenerRangoSemanaActual();\n\n// Filtrar por semana actual (ajustar \"fecha\" al nombre real de la columna)\nconst tutoriasSemana = items.filter(item => {\n  const fecha = new Date(item.json.fecha);\n  return fecha >= lunes && fecha <= domingo;\n});\n\n// Agrupar y contar por materia\nconst conteo = tutoriasSemana.reduce((acc, item) => {\n  const materia = (item.json.materia || 'Otras').trim();\n  acc[materia] = (acc[materia] || 0) + 1;\n  return acc;\n}, {});\n\nreturn [{\n  json: {\n    matematicas: conteo['Matemáticas'] || 0,\n    programacion: conteo['Programación'] || 0,\n    quimica: conteo['Química'] || 0,\n    totalSemana: tutoriasSemana.length,\n    conteoCompleto: conteo\n  }\n}];"
+      },
+      "id": "0a6ca963-f4c3-443d-8b9f-f47ced96c2aa",
+      "name": "Code - Agrupar por Materia",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "msg-resumen",
+              "name": "mensaje",
+              "type": "string",
+              "value": "=📚 Resumen de Tutorías por Materia\n----------------------------\n🧮 Matemáticas: {{ $json.matematicas }}\n💻 Programación: {{ $json.programacion }}\n🧪 Química: {{ $json.quimica }}\n📈 TOTAL SEMANA: {{ $json.totalSemana }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6fcd9f9d-8634-4d4d-b168-f74e50c03bc6",
+      "name": "Set - Mensaje Resumen",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        304,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.telegram_user_id }}",
+        "text": "={{ $json.mensaje }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "1ea49917-ef6c-4bfa-9510-d0eb0337b269",
+      "name": "Telegram - Enviar Resumen",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        528,
+        240
+      ],
+      "webhookId": "8a820af7-7136-455b-8a6c-5d668879d186",
+      "credentials": {
+        "telegramApi": {
+          "id": "FdMlxTp6S2h4MQfx",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.telegram_user_id }}",
+        "text": "⛔ No tienes permisos para acceder a esta opción.",
+        "additionalFields": {}
+      },
+      "id": "22429e28-7b33-4928-a11c-61c2a5a35405",
+      "name": "Telegram - Acceso Denegado",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -144,
+        432
+      ],
+      "webhookId": "755b48ab-f089-49a5-aa77-ef656c9502a1",
+      "credentials": {
+        "telegramApi": {
+          "id": "FdMlxTp6S2h4MQfx",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -816,
+        336
+      ],
+      "id": "0b343c84-5160-4fde-87b8-563237a8ead3",
+      "name": "Telegram Trigger",
+      "webhookId": "6e61b0b4-190a-4b6d-8ae0-bfe6c981a26c",
+      "alwaysOutputData": true,
+      "credentials": {
+        "telegramApi": {
+          "id": "FdMlxTp6S2h4MQfx",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Menú: Resumen Semanal": {
+      "main": [
+        [
+          {
+            "node": "IF - Validar Coordinador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config Coordinador": {
+      "main": [
+        [
+          {
+            "node": "IF - Validar Coordinador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Validar Coordinador": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Leer TUTORIAS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram - Acceso Denegado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Leer TUTORIAS": {
+      "main": [
+        [
+          {
+            "node": "Code - Agrupar por Materia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Agrupar por Materia": {
+      "main": [
+        [
+          {
+            "node": "Set - Mensaje Resumen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Mensaje Resumen": {
+      "main": [
+        [
+          {
+            "node": "Telegram - Enviar Resumen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config Coordinador",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Menú: Resumen Semanal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "d4160b6a-4706-4e3f-9a7b-22c135f480f9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a98874f4b1eea8dd2389f1e2d459437ddd256820d2a67593139f5be2ec65066d"
+  },
+  "nodeGroups": [],
+  "id": "OEI3EdOcstj8rtCi",
+  "tags": []
+}
