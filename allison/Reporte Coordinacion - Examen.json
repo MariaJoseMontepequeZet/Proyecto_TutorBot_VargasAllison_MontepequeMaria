@@ -1,0 +1,222 @@
+{
+  "name": "Reporte Coordinacion - Examen",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "e3e301c5-a66a-45ce-92c8-1280370d1439",
+      "name": "Telegram Trigger (Menu)",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -192,
+        -160
+      ],
+      "webhookId": "f1bafbdd-6ae8-4af9-aad7-b67980756881",
+      "credentials": {
+        "telegramApi": {
+          "id": "d7vyypfc4QlQatTh",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9bc84d12-bf9e-4c8d-82d2-8b4317f2fa83",
+              "leftValue": "={{ $json.message.from.username }}",
+              "rightValue": "allis_vargas",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "056aef5b-a623-40db-806b-6ab6c3474690",
+      "name": "Validar Coordinador",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        48,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Obtener el texto CSV del nodo HTTP Request\nconst rawData = $input.all()[0].json.data || $input.all()[0].json.body || $input.all()[0].json;\nconst csvText = typeof rawData === 'string' ? rawData : JSON.stringify(rawData);\n\n// Función simple para parsear el CSV en un array de objetos\nfunction parseCSV(text) {\n  const lines = text.split('\\n').map(line => line.trim()).filter(line => line.length > 0);\n  if (lines.length === 0) return [];\n  \n  const headers = lines[0].split(',').map(h => h.trim().replace(/^\"|\"$/g, ''));\n  const result = [];\n  \n  for (let i = 1; i < lines.length; i++) {\n    const currentLine = lines[i].split(',').map(v => v.trim().replace(/^\"|\"$/g, ''));\n    if (currentLine.length === headers.length) {\n      const obj = {};\n      for (let j = 0; j < headers.length; j++) {\n        obj[headers[j]] = currentLine[j];\n      }\n      result.push(obj);\n    }\n  }\n  return result;\n}\n\nconst tutorias = parseCSV(csvText);\n\n// 2. Definir límites de la semana actual (Viernes 17 de Julio de 2026)\nconst hoy = new Date(\"2026-07-17T12:00:00\"); // Forzamos la fecha de hoy para la evaluación\nconst diaDeLaSemana = hoy.getDay(); // 0: Domingo, 1: Lunes...\n\n// Calcular el lunes de esta semana (13 de Julio de 2026)\nconst diferenciaAlLunes = hoy.getDate() - diaDeLaSemana + (diaDeLaSemana === 0 ? -6 : 1);\nconst inicioSemana = new Date(hoy);\ninicioSemana.setDate(diferenciaAlLunes);\ninicioSemana.setHours(0, 0, 0, 0);\n\n// Calcular el domingo de esta semana (19 de Julio de 2026)\nconst finSemana = new Date(inicioSemana);\nfinSemana.setDate(inicioSemana.getDate() + 6);\nfinSemana.setHours(23, 59, 59, 999);\n\n// 3. Inicializar contadores\nlet matematicasCount = 0;\nlet programacionCount = 0;\nlet quimicaCount = 0;\nlet totalSemana = 0;\n\n// 4. Procesar tutorías\nfor (const tutoria of tutorias) {\n  const fechaStr = tutoria.fecha;\n  const materiaRaw = tutoria.materia;\n\n  if (!fechaStr || !materiaRaw) continue;\n\n  const fechaTutoria = new Date(fechaStr + \"T12:00:00\"); // Evitar desfase de zona horaria\n  const materia = materiaRaw.toLowerCase();\n\n  // Validar si está dentro del rango\n  if (fechaTutoria >= inicioSemana && fechaTutoria <= finSemana) {\n    if (materia.includes('matem') || materia.includes('algebra') || materia.includes('calculo')) {\n      matematicasCount++;\n      totalSemana++;\n    } else if (materia.includes('prog') || materia.includes('code') || materia.includes('desarrollo')) {\n      programacionCount++;\n      totalSemana++;\n    } else if (materia.includes('quim') || materia.includes('química')) {\n      quimicaCount++;\n      totalSemana++;\n    }\n  }\n}\n\n// 5. Generar plantilla\nconst mensajeReporte = `📚 Resumen de Tutorías por Materia\n\n----------------------------\n\n🧮 Matemáticas: ${matematicasCount}\n\n💻 Programación: ${programacionCount}\n\n🧪 Química: ${quimicaCount}\n\n📈 TOTAL SEMANA: ${totalSemana}`;\n\nreturn [{ json: { mensaje_reporte: mensajeReporte } }];"
+      },
+      "id": "29b3f688-dca7-4032-9ecb-42d7e60f9897",
+      "name": "Consolidar Tutorias",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        -256
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $node[\"Telegram Trigger (Menu)\"].json.message.chat.id }}",
+        "text": "={{ $json.mensaje_reporte }}",
+        "additionalFields": {}
+      },
+      "id": "a36c0fcf-c97a-47ac-ac64-4bb45c8f01e8",
+      "name": "Enviar Reporte Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        704,
+        -256
+      ],
+      "webhookId": "fa0e2ac9-86eb-4aee-a90f-3dbda1a1b29c",
+      "credentials": {
+        "telegramApi": {
+          "id": "d7vyypfc4QlQatTh",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.message.chat.id }}",
+        "text": "⚠️ No tienes permisos de Coordinador para ejecutar esta acción.",
+        "additionalFields": {}
+      },
+      "id": "16a1bf7e-b1bb-4e4d-91e7-cd8232e3e3a4",
+      "name": "Alerta Sin Permisos",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        256,
+        -64
+      ],
+      "webhookId": "8a2e434f-923e-48c1-9d87-9a9702a41ff3",
+      "credentials": {
+        "telegramApi": {
+          "id": "d7vyypfc4QlQatTh",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://docs.google.com/spreadsheets/d/1k7mNp0XazNSiWyeglk-j5g788aNWedcwS3NWNxXBhmE/export?format=csv",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        272,
+        -256
+      ],
+      "id": "4cdb5ead-f0e2-4c1f-b9f5-6063bd0a8440",
+      "name": "HTTP Request"
+    }
+  ],
+  "pinData": {
+    "Telegram Trigger (Menu)": [
+      {
+        "json": {
+          "message": {
+            "from": {
+              "username": "allis_vargas",
+              "id": 507725
+            },
+            "chat": {
+              "id": 507725
+            },
+            "text": "hola"
+          }
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Telegram Trigger (Menu)": {
+      "main": [
+        [
+          {
+            "node": "Validar Coordinador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar Coordinador": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Alerta Sin Permisos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consolidar Tutorias": {
+      "main": [
+        [
+          {
+            "node": "Enviar Reporte Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alerta Sin Permisos": {
+      "main": [
+        []
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Consolidar Tutorias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "7742c8da-e8e6-434e-b787-93ee8bde09ea",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "936e0e9f192646b43d7d3c0968c3bd2c60ccade909150ea0e55bf0c476488818"
+  },
+  "nodeGroups": [],
+  "id": "D1PViIwmm2McEnF9",
+  "tags": []
+}
